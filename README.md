@@ -63,14 +63,6 @@ normalized_outputs/solver_full_trajectory_dataset.jsonl
 This JSONL file contains normalized solver trajectories with fields such as
 `problem`, `solution_steps`, `final_answer`, `source`, `level`, and `category`.
 
-`newest_solver/colab_math_only_sft.ipynb` converts that normalized JSONL into
-chat-format SFT splits. The checked-in split has:
-
-| File | Rows |
-| --- | ---: |
-| `newest_solver/data/train_sft.jsonl` | 1,144 |
-| `newest_solver/data/val_sft.jsonl` | 63 |
-| `newest_solver/data/test_sft.jsonl` | 63 |
 
 `verifier/solution_verification.jsonl` contains 905 full-solution verification
 examples. `verifier/next_step_verification.jsonl` contains 26,256 next-step
