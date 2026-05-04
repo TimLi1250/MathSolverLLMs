@@ -63,13 +63,14 @@ normalized_outputs/solver_full_trajectory_dataset.jsonl
 This JSONL file contains normalized solver trajectories with fields such as
 `problem`, `solution_steps`, `final_answer`, `source`, `level`, and `category`.
 
-`newest_solver/data/` contains chat-format SFT splits. The checked-in split has:
+`newest_solver/colab_math_only_sft.ipynb` converts that normalized JSONL into
+chat-format SFT splits. The checked-in split has:
 
 | File | Rows |
 | --- | ---: |
-| `train_sft.jsonl` | 1,144 |
-| `val_sft.jsonl` | 63 |
-| `test_sft.jsonl` | 63 |
+| `newest_solver/data/train_sft.jsonl` | 1,144 |
+| `newest_solver/data/val_sft.jsonl` | 63 |
+| `newest_solver/data/test_sft.jsonl` | 63 |
 
 `verifier/solution_verification.jsonl` contains 905 full-solution verification
 examples. `verifier/next_step_verification.jsonl` contains 26,256 next-step
@@ -77,9 +78,9 @@ verification examples.
 
 ## Setup
 
-The training scripts are intended for a GPU environment. The notebooks are set
-up for Google Colab, while the shell scripts can be run locally if the required
-models and checkpoints are available.
+The notebooks are the primary pipeline and are set up for Google Colab. The
+shell scripts can be run locally in a GPU environment if the required models and
+checkpoints are available.
 
 Install dependencies for solver SFT:
 
@@ -95,7 +96,7 @@ cd solver_and_verifier
 pip install -r requirements.txt
 ```
 
-## Workflow
+## Pipeline
 
 ### 1. Build the normalized solver dataset
 
@@ -107,51 +108,80 @@ answers, and writes:
 normalized_outputs/solver_full_trajectory_dataset.jsonl
 ```
 
-### 2. Prepare MATH-only SFT data
+### 2. Run the MATH-only solver notebook
 
-From `newest_solver/`:
+Open and run:
 
-```bash
-bash prepare_data.sh
+```text
+newest_solver/colab_math_only_sft.ipynb
 ```
 
-This reads `../normalized_outputs/solver_full_trajectory_dataset.jsonl`, filters
-to MATH rows with final answers, and writes chat-format JSONL splits under
-`newest_solver/data/`.
+This notebook prepares the chat-format SFT splits from
+`normalized_outputs/solver_full_trajectory_dataset.jsonl` and trains the
+MATH-only LoRA solver. It writes the SFT data to:
 
-### 3. Train the supervised solver
-
-From `newest_solver/`:
-
-```bash
-bash train_lora.sh
+```text
+newest_solver/data/
 ```
 
-This trains a LoRA adapter for `Qwen/Qwen2.5-0.5B-Instruct` and writes it to:
+and the trained solver adapter to:
 
 ```text
 newest_solver/outputs/qwen2.5-0.5b-math-only-lora/
 ```
 
-### 4. Train the verifier
+For local runs, the same preparation and training steps are available as:
 
-Use the notebooks in `verifier/`:
+```bash
+cd newest_solver
+bash prepare_data.sh
+bash train_lora.sh
+```
+
+### 3. Run the verifier notebook
+
+Open and run:
 
 ```text
-verifier/prm800k_preprocessing.ipynb
 verifier/modernbert_joint_verifier.ipynb
 ```
 
-The verifier is a binary classifier initialized from
-`answerdotai/ModernBERT-large`. It is trained jointly on full-solution and
-next-step verification examples. The RL scripts expect the trained verifier
-checkpoint at:
+This trains the ModernBERT verifier on full-solution and next-step verification
+examples. The RL stage expects the trained verifier checkpoint at:
 
 ```text
 verifier/modernbert_joint_verifier_best/
 ```
 
-### 5. Smoke-test the verifier reward
+`verifier/prm800k_preprocessing.ipynb` is the preprocessing notebook used to
+rebuild the verifier JSONL files if needed.
+
+### 4. Run the solver-and-verifier RL notebook
+
+Open and run:
+
+```text
+solver_and_verifier/colab_solver_verifier_rl.ipynb
+```
+
+This notebook loads the MATH-only solver adapter and the trained verifier,
+samples solver outputs, scores them with the verifier, and trains the final
+verifier-guided RL solver adapter. RL outputs are written to:
+
+```text
+solver_and_verifier/outputs/qwen2.5-0.5b-math-verifier-rl-lora/
+```
+
+For local runs, the equivalent command is:
+
+```bash
+cd solver_and_verifier
+bash train_rl.sh
+```
+
+## Optional Checks
+
+### Smoke-test the verifier reward
 
 From `solver_and_verifier/`:
 
@@ -164,25 +194,6 @@ python score_with_verifier.py \
 
 This loads the trained verifier, formats MATH solutions with the same prompt
 template used during verifier training, and reports `P(correct_or_valid)`.
-
-### 6. Run verifier-guided RL
-
-From `solver_and_verifier/`:
-
-```bash
-bash train_rl.sh
-```
-
-The RL trainer starts from the MATH-only SFT adapter, samples complete
-solutions, scores them with the frozen verifier, and updates only the solver
-LoRA parameters using a REINFORCE-style objective with an EMA baseline and a KL
-penalty against the original SFT adapter.
-
-RL outputs are written to:
-
-```text
-solver_and_verifier/outputs/qwen2.5-0.5b-math-verifier-rl-lora/
-```
 
 ## Key Implementation Details
 
