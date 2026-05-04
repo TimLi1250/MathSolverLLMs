@@ -52,9 +52,16 @@ more concise SFT format.
 
 ## Data
 
-`normalized_outputs/solver_full_trajectory_dataset.jsonl` contains normalized
-solver trajectories with fields such as `problem`, `solution_steps`,
-`final_answer`, `source`, `level`, and `category`.
+Run `dataset_solver.ipynb` first to build the normalized solver dataset. The
+notebook loads `EleutherAI/hendrycks_math`, extracts 2,000 unique MATH problems
+with full solution trajectories and final answers, and writes:
+
+```text
+normalized_outputs/solver_full_trajectory_dataset.jsonl
+```
+
+This JSONL file contains normalized solver trajectories with fields such as
+`problem`, `solution_steps`, `final_answer`, `source`, `level`, and `category`.
 
 `newest_solver/data/` contains chat-format SFT splits. The checked-in split has:
 
@@ -90,7 +97,17 @@ pip install -r requirements.txt
 
 ## Workflow
 
-### 1. Prepare MATH-only SFT data
+### 1. Build the normalized solver dataset
+
+Open and run `dataset_solver.ipynb` from the repository root. It downloads the
+MATH data, normalizes each problem and solution trajectory, extracts final
+answers, and writes:
+
+```text
+normalized_outputs/solver_full_trajectory_dataset.jsonl
+```
+
+### 2. Prepare MATH-only SFT data
 
 From `newest_solver/`:
 
@@ -102,7 +119,7 @@ This reads `../normalized_outputs/solver_full_trajectory_dataset.jsonl`, filters
 to MATH rows with final answers, and writes chat-format JSONL splits under
 `newest_solver/data/`.
 
-### 2. Train the supervised solver
+### 3. Train the supervised solver
 
 From `newest_solver/`:
 
@@ -116,7 +133,7 @@ This trains a LoRA adapter for `Qwen/Qwen2.5-0.5B-Instruct` and writes it to:
 newest_solver/outputs/qwen2.5-0.5b-math-only-lora/
 ```
 
-### 3. Train the verifier
+### 4. Train the verifier
 
 Use the notebooks in `verifier/`:
 
@@ -134,7 +151,7 @@ checkpoint at:
 verifier/modernbert_joint_verifier_best/
 ```
 
-### 4. Smoke-test the verifier reward
+### 5. Smoke-test the verifier reward
 
 From `solver_and_verifier/`:
 
@@ -148,7 +165,7 @@ python score_with_verifier.py \
 This loads the trained verifier, formats MATH solutions with the same prompt
 template used during verifier training, and reports `P(correct_or_valid)`.
 
-### 5. Run verifier-guided RL
+### 6. Run verifier-guided RL
 
 From `solver_and_verifier/`:
 
